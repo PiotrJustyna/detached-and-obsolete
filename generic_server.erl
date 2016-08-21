@@ -13,8 +13,13 @@ rpc(Name, Request) ->
   end.
 
 loop(Name, Module, State) ->
+  io:format("generic server looping\n"),
   receive
-    { From, Request } -> { Response, State1 } = Module:handle(Request, State),
+    { From, Request } ->
+      io:format("generic server received a request and is calling the ~p's handle.~n", [Module]),
+      { Response, State1 } = Module:handle(Request, State),
+      io:format("generic server received ~p's result.~n", [Module]),
     From ! { Name, Response },
+    io:format("generic server is sending a message to ~p.~n", [From]),
     loop(Name, Module, State1)
   end.
