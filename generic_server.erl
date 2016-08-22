@@ -7,25 +7,26 @@ start(Name, Module) ->
     spawn(fun() -> loop(Name, Module, Module:init()) end)).
 
 rpc(Name, Request) ->
-  io:format("Received an RPC request: ~p from ~p.\n", [Request, Name]),
-  io:format("Sending the request from ~p to ~p.\n", [self(), Name]),
   Name ! { self(), Request },
-  io:format("Waiting for a response from ~p.\n", [Name]),
   receive
-    { Name, Response } ->
-      io:format("Received the response ~p from ~p.\n", [Response, Name]),
-      Response
+    { Name, crash } -> exit(rpc);
+    { Name, ok, Response } -> Response
   end.
 
 loop(Name, Module, State) ->
-  io:format("Looping.\n"),
   receive
     { From, Request } ->
-      io:format("Received request ~p from ~p.\n", [Request, From]),
-      io:format("Calling ~p's handle with Request: ~p and State: ~p.\n", [Module, Request, State]),
-      { Response, State1 } = Module:handle(Request, State),
-      io:format("~p's handle returned Response: ~p and new State: ~p.~n", [Module, Response, State1]),
-    io:format("Sending the Response ~p from ~p to ~p.\n", [Response, Name, From]),
-    From ! { Name, Response },
-    loop(Name, Module, State1)
+      try Module:handle(Request, State) of
+        { Response, State1 }  ->
+          From ! { Name, ok, Response },
+          loop(Name, Module, State1)
+      catch
+        _:Reason ->
+          log_the_error(Name, Request, Reason),
+          From ! { Name, crash },
+          loop(Name, Module, State)
+      end
   end.
+
+  log_the_error(Name, Request, Reason) ->
+    io:format("Server ~p request ~p~n caused exception ~p.~n", [Name, Request, Reason]).
